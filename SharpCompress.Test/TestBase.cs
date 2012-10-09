@@ -52,17 +52,28 @@ namespace SharpCompress.Test
 
         public void ResetScratch()
         {
-            if (Directory.Exists(SCRATCH_FILES_PATH))
+            for (int i = 5; i >= 0; i--)
             {
-                Directory.Delete(SCRATCH_FILES_PATH, true);
+                try
+                {
+                    if (Directory.Exists(SCRATCH_FILES_PATH))
+                    {
+                        Directory.Delete(SCRATCH_FILES_PATH, true);
+                    }
+                    Directory.CreateDirectory(SCRATCH_FILES_PATH);
+                    if (Directory.Exists(SCRATCH2_FILES_PATH))
+                    {
+                        Directory.Delete(SCRATCH2_FILES_PATH, true);
+                    }
+                    Directory.CreateDirectory(SCRATCH2_FILES_PATH);
+                    break;
+                }
+                catch
+                {
+                    if (i == 0) throw;
+                }
+                System.Threading.Thread.Sleep(50);
             }
-            Directory.CreateDirectory(SCRATCH_FILES_PATH);
-            if (Directory.Exists(SCRATCH2_FILES_PATH))
-            {
-                Directory.Delete(SCRATCH2_FILES_PATH, true);
-            }
-            Directory.CreateDirectory(SCRATCH2_FILES_PATH);
-
         }
 
         public void VerifyFiles()
