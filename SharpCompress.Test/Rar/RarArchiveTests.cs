@@ -152,5 +152,19 @@ namespace SharpCompress.Test
                 Assert.IsFalse(archive.IsFirstVolume());
             }
         }
+
+        [Ignore]
+        [TestMethod]
+        public void Rar_Encrypted_ArchiveFileRead()
+        {
+            ArchiveFileRead("Rar.encrypted.rar");
+        }
+
+        [Ignore]
+        [TestMethod]
+        public void Rar_EncryptedFileNames_ArchiveFileRead()
+        {
+            ArchiveFileRead("Rar.encryptedfilenames.rar");
+        }
     }
 }
