@@ -1,13 +1,27 @@
 ﻿using System.IO;
+using SharpCompress.IO;
 
 namespace SharpCompress.Common
 {
     public abstract class Volume : IVolume
     {
-        internal abstract Stream Stream
+        private readonly Stream actualStream;
+
+        internal Volume(Stream stream, Options options)
         {
-            get;
+            actualStream = stream;
+            Options = options;
         }
+
+        internal Stream Stream
+        {
+            get
+            {
+                return new NonDisposingStream(actualStream);
+            }
+        }
+
+        internal Options Options { get; private set; }
 
         /// <summary>
         /// RarArchive is the first volume of a multi-part archive.
@@ -32,5 +46,15 @@ namespace SharpCompress.Common
             get;
         }
 #endif
+
+        private bool disposed;
+        public void Dispose()
+        {
+            if (!Options.HasFlag(Options.KeepStreamsOpen) && !disposed)
+            {
+                actualStream.Dispose();
+                disposed = true;
+            }
+        }
     }
 }

@@ -9,8 +9,8 @@ namespace SharpCompress.Reader.Rar
     {
         private readonly Stream stream;
 
-        internal SingleVolumeRarReader(Stream stream, Options options, IExtractionListener listener)
-            : base(options, listener)
+        internal SingleVolumeRarReader(Stream stream, Options options)
+            : base(options)
         {
             this.stream = stream;
         }
@@ -19,18 +19,13 @@ namespace SharpCompress.Reader.Rar
         {
             if (archive.IsMultiVolume)
             {
-                throw new RarExtractionException("Streamed archive is a Multi-volume archive.  Use different RarReader method to extract.");
+                throw new MultiVolumeExtractionException("Streamed archive is a Multi-volume archive.  Use different RarReader method to extract.");
             }
         }
 
         internal override Stream RequestInitialStream()
         {
             return stream;
-        }
-
-        internal override IEnumerable<FilePart> CreateFilePartEnumerableForCurrentEntry()
-        {
-            return Entry.Parts;
         }
     }
 }

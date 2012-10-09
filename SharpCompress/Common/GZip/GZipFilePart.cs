@@ -1,22 +1,20 @@
 ﻿using System;
 using System.IO;
+using SharpCompress.Common.Tar.Headers;
+using SharpCompress.Compressor;
 using SharpCompress.Compressor.Deflate;
-using SharpCompress.IO;
 
 namespace SharpCompress.Common.GZip
 {
-    public class GZipFilePart : FilePart
+    internal class GZipFilePart : FilePart
     {
         private string name;
         private Stream stream;
 
         internal GZipFilePart(Stream stream)
         {
-            RewindableStream rewind = new RewindableStream(stream);
-            rewind.Recording = true;
-            ReadAndValidateGzipHeader(rewind);
-            rewind.Rewind();
-            this.stream = new GZipStream(rewind, CompressionMode.Decompress);
+            ReadAndValidateGzipHeader(stream);
+            this.stream = new DeflateStream(stream, CompressionMode.Decompress, CompressionLevel.Default, false);
         }
 
         internal DateTime? DateModified { get; private set; }
@@ -50,7 +48,7 @@ namespace SharpCompress.Common.GZip
                 throw new ZlibException("Bad GZIP header.");
 
             Int32 timet = BitConverter.ToInt32(header, 4);
-            DateModified = GZipStream._unixEpoch.AddSeconds(timet);
+            DateModified = TarHeader.Epoch.AddSeconds(timet);
             totalBytesRead += n;
             if ((header[3] & 0x04) == 0x04)
             {
@@ -94,7 +92,7 @@ namespace SharpCompress.Common.GZip
                 }
             } while (!done);
             byte[] a = list.ToArray();
-            return GZipStream.iso8859dash1.GetString(a, 0, a.Length);
+            return ArchiveEncoding.Default.GetString(a, 0, a.Length);
         }
     }
 }

@@ -18,6 +18,11 @@ namespace SharpCompress.Archive.Rar
             Archive = archive;
         }
 
+        public override CompressionType CompressionType
+        {
+            get { return CompressionType.Rar; }
+        }
+
         private RarArchive Archive
         {
             get;
@@ -44,16 +49,19 @@ namespace SharpCompress.Archive.Rar
         {
             get
             {
+                CheckIncomplete();
                 return parts.Select(fp => fp.FileHeader)
                     .Where(fh => !fh.FileFlags.HasFlag(FileFlags.SPLIT_AFTER))
                     .Single().FileCRC;
             }
         }
 
+
         public override long Size
         {
             get
             {
+                CheckIncomplete();
                 return parts.Aggregate(0L, (total, fp) =>
                 {
                     return total + fp.FileHeader.UncompressedSize;
@@ -65,6 +73,7 @@ namespace SharpCompress.Archive.Rar
         {
             get
             {
+                CheckIncomplete();
                 return parts.Aggregate(0L, (total, fp) =>
                 {
                     return total + fp.FileHeader.CompressedSize;
@@ -72,24 +81,39 @@ namespace SharpCompress.Archive.Rar
             }
         }
 
-        public void WriteTo(Stream streamToWriteTo, IExtractionListener listener)
+        public Stream OpenEntryStream()
         {
+            return new RarStream(Archive.Unpack, FileHeader,
+                                 new MultiVolumeReadOnlyStream(Parts.Cast<RarFilePart>(), Archive));
+        }
+
+        public void WriteTo(Stream streamToWriteTo)
+        {
+            CheckIncomplete();
+            if (Archive.IsSolidArchive())
+            {
+                throw new InvalidFormatException("Cannot use Archive random access on SOLID Rar files.");
+            }
             if (IsEncrypted)
             {
-                throw new RarExtractionException("Entry is password protected and cannot be extracted.");
+                throw new PasswordProtectedException("Entry is password protected and cannot be extracted.");
             }
+            this.Extract(Archive, streamToWriteTo);
+        }
 
-            if (IsDirectory)
+        public bool IsComplete
+        {
+            get
             {
-                throw new RarExtractionException("Entry is a file directory and cannot be extracted.");
+                return parts.Select(fp => fp.FileHeader).Any(fh => !fh.FileFlags.HasFlag(FileFlags.SPLIT_AFTER));
             }
+        }
 
-            listener.CheckNotNull("listener");
-            listener.OnFileEntryExtractionInitialized(FilePath, CompressedSize);
-            using (Stream input = new MultiVolumeReadOnlyStream(parts, listener))
+        private void CheckIncomplete()
+        {
+            if (!IsComplete)
             {
-                var pack = new Unpack(FileHeader, input, streamToWriteTo);
-                pack.doUnpack(Archive.IsSolidArchive());
+                throw new IncompleteArchiveException("ArchiveEntry is incomplete and cannot perform this operation.");
             }
         }
     }

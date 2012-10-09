@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
-using SharpCompress.Common;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using SharpCompress.Common.Rar.Headers;
 using SharpCompress.IO;
 
@@ -10,12 +12,11 @@ namespace SharpCompress.Common.Rar
     /// </summary>
     public abstract class RarVolume : Volume
     {
-        private RarHeaderFactory headerFactory;
-        private Options options;
+        private readonly RarHeaderFactory headerFactory;
 
-        internal RarVolume(StreamingMode mode, Options options)
+        internal RarVolume(StreamingMode mode, Stream stream, Options options)
+            : base(stream, options)
         {
-            this.options = options;
             headerFactory = new RarHeaderFactory(mode, options);
         }
 
@@ -57,7 +58,7 @@ namespace SharpCompress.Common.Rar
                                 RarFilePart fp = CreateFilePart(fh, previousMarkHeader);
                                 yield return fp;
                             }
-                            else if (options.HasFlag(Options.GiveDirectoryEntries))
+                            else if (Options.HasFlag(Options.GiveDirectoryEntries))
                             {
                                 RarFilePart fp = CreateFilePart(fh, previousMarkHeader);
                                 yield return fp;
@@ -74,6 +75,20 @@ namespace SharpCompress.Common.Rar
             private set;
         }
 
+        private void EnsureArchiveHeaderLoaded()
+        {
+            if (ArchiveHeader == null)
+            {
+                if (Mode == StreamingMode.Streaming)
+                {
+                    throw new InvalidOperationException("ArchiveHeader should never been null in a streaming read.");
+                }
+                //we only want to load the archive header to avoid overhead but have to do the nasty thing and reset the stream
+                GetVolumeFileParts().First();
+                Stream.Position = 0;
+            }
+        }
+
         /// <summary>
         /// RarArchive is the first volume of a multi-part archive.
         /// Only Rar 3.0 format and higher
@@ -82,6 +97,7 @@ namespace SharpCompress.Common.Rar
         {
             get
             {
+                EnsureArchiveHeaderLoaded();
                 return ArchiveHeader.ArchiveHeaderFlags.HasFlag(ArchiveFlags.FIRSTVOLUME);
             }
         }
@@ -93,6 +109,7 @@ namespace SharpCompress.Common.Rar
         {
             get
             {
+                EnsureArchiveHeaderLoaded();
                 return ArchiveHeader.ArchiveHeaderFlags.HasFlag(ArchiveFlags.VOLUME);
             }
         }
@@ -105,6 +122,7 @@ namespace SharpCompress.Common.Rar
         {
             get
             {
+                EnsureArchiveHeaderLoaded();
                 return ArchiveHeader.ArchiveHeaderFlags.HasFlag(ArchiveFlags.SOLID);
             }
         }

@@ -999,7 +999,7 @@ namespace SharpCompress.Compressor.Deflate
             try
             {
                 // compress one buffer
-                int myItem = workitem.index;
+                //int myItem = workitem.index;
 
                 lock (workitem)
                 {
@@ -1045,7 +1045,7 @@ namespace SharpCompress.Compressor.Deflate
         private bool DeflateOneSegment(WorkItem workitem)
         {
             ZlibCodec compressor = workitem.compressor;
-            int rc = 0;
+            //int rc = 0;
             compressor.ResetDeflate();
             compressor.NextIn = 0;
 
@@ -1060,7 +1060,7 @@ namespace SharpCompress.Compressor.Deflate
             } while (compressor.AvailableBytesIn > 0 || compressor.AvailableBytesOut == 0);
 
             // step 2: flush (sync)
-            rc = compressor.Deflate(FlushType.Sync);
+            compressor.Deflate(FlushType.Sync);
 
             workitem.compressedBytesAvailable = (int)compressor.TotalBytesOut;
             return true;

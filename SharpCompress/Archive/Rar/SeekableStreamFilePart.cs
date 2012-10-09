@@ -6,8 +6,8 @@ namespace SharpCompress.Archive.Rar
 {
     internal class SeekableStreamFilePart : RarFilePart
     {
-        internal SeekableStreamFilePart(MarkHeader mh, FileHeader fh, Stream stream, bool streamOwner)
-            : base(mh, fh, streamOwner)
+        internal SeekableStreamFilePart(MarkHeader mh, FileHeader fh, Stream stream)
+            : base(mh, fh)
         {
             Stream = stream;
         }

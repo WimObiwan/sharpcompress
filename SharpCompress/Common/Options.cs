@@ -14,9 +14,9 @@ namespace SharpCompress.Common
         /// </summary>
         KeepStreamsOpen = 1,
         /// <summary>
-        /// Check for self-extracting archives
+        /// Look for RarArchive (Check for self-extracting archives or cases where RarArchive isn't at the start of the file)
         /// </summary>
-        CheckForSFX = 2,
+        LookForHeader = 2,
         /// <summary>
         /// Return entries for directories as well as files
         /// </summary>

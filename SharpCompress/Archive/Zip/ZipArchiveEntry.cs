@@ -1,40 +1,47 @@
 ﻿using System.IO;
 using System.Linq;
-using SharpCompress.Common;
 using SharpCompress.Common.Zip;
 
 namespace SharpCompress.Archive.Zip
 {
     public class ZipArchiveEntry : ZipEntry, IArchiveEntry
     {
-        public ZipArchiveEntry(ZipFilePart part)
+        private ZipArchive archive;
+
+        internal ZipArchiveEntry(ZipArchive archive, SeekableZipFilePart part)
             : base(part)
         {
+            this.archive = archive;
+        }
+
+        public virtual Stream OpenEntryStream()
+        {
+            return Parts.Single().GetStream();
         }
 
         #region IArchiveEntry Members
 
-        public void WriteTo(Stream streamToWriteTo, IExtractionListener listener)
+        public void WriteTo(Stream streamToWriteTo)
         {
-            if (IsEncrypted)
-            {
-                throw new RarExtractionException("Entry is password protected and cannot be extracted.");
-            }
+            this.Extract(archive, streamToWriteTo);
+        }
 
-            if (IsDirectory)
+        public bool IsComplete
+        {
+            get
             {
-                throw new RarExtractionException("Entry is a file directory and cannot be extracted.");
-            }
-
-            listener.CheckNotNull("listener");
-            listener.OnFileEntryExtractionInitialized(FilePath, CompressedSize);
-
-            using (Stream s = Parts.Single().GetStream())
-            {
-                s.TransferTo(streamToWriteTo);
+                return true;
             }
         }
 
         #endregion
+
+        public string Comment
+        {
+            get
+            {
+                return (Parts.Single() as SeekableZipFilePart).Comment;
+            }
+        }
     }
 }

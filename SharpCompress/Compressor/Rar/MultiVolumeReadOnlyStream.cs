@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using SharpCompress.Common;
-using SharpCompress.Common.Rar.Headers;
 using SharpCompress.Common.Rar;
+using SharpCompress.Common.Rar.Headers;
 
 namespace SharpCompress.Compressor.Rar
 {
@@ -14,17 +14,15 @@ namespace SharpCompress.Compressor.Rar
 
         private IEnumerator<RarFilePart> filePartEnumerator;
         private Stream currentStream;
-        private bool currentIsOwner;
 
-        private IExtractionListener listener;
+        private readonly IStreamListener streamListener;
 
         private long currentPartTotalReadBytes;
         private long currentEntryTotalReadBytes;
 
-        internal MultiVolumeReadOnlyStream(IEnumerable<RarFilePart> parts,
-            IExtractionListener listener)
+        internal MultiVolumeReadOnlyStream(IEnumerable<RarFilePart> parts, IStreamListener streamListener)
         {
-            this.listener = listener;
+            this.streamListener = streamListener;
 
             filePartEnumerator = parts.GetEnumerator();
             filePartEnumerator.MoveNext();
@@ -38,19 +36,14 @@ namespace SharpCompress.Compressor.Rar
             {
                 if (filePartEnumerator != null)
                 {
-                    //if ((currentStream != null) && currentIsOwner)
-                    //{
-                    //    currentStream.Dispose();
-                    //    currentStream = null;
-                    //}
                     filePartEnumerator.Dispose();
                     filePartEnumerator = null;
                 }
-                //else if (currentStream != null)
-                //{
-                //    currentStream.Dispose();
-                //    currentStream = null;
-                //}
+                if (currentStream != null)
+                {
+                    currentStream.Dispose();
+                    currentStream = null;
+                }
             }
         }
 
@@ -58,17 +51,17 @@ namespace SharpCompress.Compressor.Rar
         {
             maxPosition = filePartEnumerator.Current.FileHeader.CompressedSize;
             currentPosition = 0;
-            if ((currentStream != null) && currentIsOwner)
+            if (currentStream != null)
             {
                 currentStream.Dispose();
             }
             currentStream = filePartEnumerator.Current.GetStream();
-            currentIsOwner = filePartEnumerator.Current.StreamOwner;
 
             currentPartTotalReadBytes = 0;
 
-            listener.OnFilePartExtractionInitialized(filePartEnumerator.Current.FilePartName,
-                filePartEnumerator.Current.FileHeader.CompressedSize);
+            streamListener.FireFilePartExtractionBegin(filePartEnumerator.Current.FilePartName,
+                 filePartEnumerator.Current.FileHeader.CompressedSize,
+                filePartEnumerator.Current.FileHeader.UncompressedSize);
         }
 
         public override int Read(byte[] buffer, int offset, int count)
@@ -92,10 +85,14 @@ namespace SharpCompress.Compressor.Rar
                 offset += read;
                 count -= read;
                 totalRead += read;
-                if ((maxPosition - currentPosition) == 0
-                    && filePartEnumerator.Current.FileHeader.FileFlags.HasFlag(FileFlags.SPLIT_AFTER)
-                    && filePartEnumerator.MoveNext())
+                if (((maxPosition - currentPosition) == 0)
+                    && filePartEnumerator.Current.FileHeader.FileFlags.HasFlag(FileFlags.SPLIT_AFTER))
                 {
+                    string fileName = filePartEnumerator.Current.FileHeader.FileName;
+                    if (!filePartEnumerator.MoveNext())
+                    {
+                        throw new InvalidFormatException("Multi-part rar file is incomplete.  Entry expects a new volume: " + fileName);
+                    }
                     InitializeNextFilePart();
                 }
                 else
@@ -105,7 +102,7 @@ namespace SharpCompress.Compressor.Rar
             }
             currentPartTotalReadBytes += totalRead;
             currentEntryTotalReadBytes += totalRead;
-            listener.OnCompressedBytesRead(currentPartTotalReadBytes, currentEntryTotalReadBytes);
+            streamListener.FireCompressedBytesRead(currentPartTotalReadBytes, currentEntryTotalReadBytes);
             return totalRead;
         }
 

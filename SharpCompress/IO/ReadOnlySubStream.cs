@@ -4,20 +4,17 @@ namespace SharpCompress.IO
 {
     internal class ReadOnlySubStream : Stream
     {
-        private bool leaveOpen;
-
-        public ReadOnlySubStream(Stream stream, long bytesToRead, bool leaveOpen)
+        public ReadOnlySubStream(Stream stream, long bytesToRead)
         {
             Stream = stream;
             BytesLeftToRead = bytesToRead;
-            this.leaveOpen = leaveOpen;
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing && !leaveOpen)
+            if (disposing)
             {
-                Stream.Dispose();
+                //Stream.Dispose();
             }
         }
 

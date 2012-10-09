@@ -30,6 +30,14 @@ namespace SharpCompress.Common
         }
 
         /// <summary>
+        /// The compression type
+        /// </summary>
+        public abstract CompressionType CompressionType
+        {
+            get;
+        }
+
+        /// <summary>
         /// The uncompressed file size
         /// </summary>
         public abstract long Size

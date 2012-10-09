@@ -9,27 +9,13 @@ namespace SharpCompress.Reader.Rar
 {
     public class RarReaderVolume : RarVolume
     {
-        private bool streamOwner;
-        private Stream stream;
-
         internal RarReaderVolume(Stream stream, Options options)
-            : base(StreamingMode.Streaming, options)
+            : base(StreamingMode.Streaming, stream, options)
         {
-            this.stream = stream;
-            this.streamOwner = !options.HasFlag(Options.KeepStreamsOpen);
         }
-
-        internal override Stream Stream
-        {
-            get
-            {
-                return stream;
-            }
-        }
-
         internal override RarFilePart CreateFilePart(FileHeader fileHeader, MarkHeader markHeader)
         {
-            return new NonSeekableStreamFilePart(markHeader, fileHeader, streamOwner);
+            return new NonSeekableStreamFilePart(markHeader, fileHeader);
         }
 
         internal override IEnumerable<RarFilePart> ReadFileParts()

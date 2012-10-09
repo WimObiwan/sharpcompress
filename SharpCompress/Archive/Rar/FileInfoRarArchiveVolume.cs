@@ -1,5 +1,4 @@
 ﻿using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.IO;
 using SharpCompress.Common;
 using SharpCompress.Common.Rar;
@@ -11,10 +10,10 @@ namespace SharpCompress.Archive.Rar
     /// <summary>
     /// A rar part based on a FileInfo object
     /// </summary>
-    internal class FileInfoRarArchiveVolume : RarArchiveVolume
+    internal class FileInfoRarArchiveVolume : RarVolume
     {
         internal FileInfoRarArchiveVolume(FileInfo fileInfo, Options options)
-            : base(StreamingMode.Seekable, FixOptions(options))
+            : base(StreamingMode.Seekable, fileInfo.OpenRead(), FixOptions(options))
         {
             FileInfo = fileInfo;
             FileParts = base.GetVolumeFileParts().ToReadOnly();
@@ -44,15 +43,7 @@ namespace SharpCompress.Archive.Rar
 
         internal override RarFilePart CreateFilePart(FileHeader fileHeader, MarkHeader markHeader)
         {
-            return new FileInfoRarFilePart(markHeader, fileHeader, FileInfo);
-        }
-
-        internal override Stream Stream
-        {
-            get
-            {
-                return FileInfo.OpenRead();
-            }
+            return new FileInfoRarFilePart(this, markHeader, fileHeader, FileInfo);
         }
 
         internal override IEnumerable<RarFilePart> ReadFileParts()

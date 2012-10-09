@@ -2,16 +2,24 @@
 using System.Collections.Generic;
 using System.IO;
 using SharpCompress.Common.Tar.Headers;
+using SharpCompress.IO;
 
 namespace SharpCompress.Common.Tar
 {
     public class TarEntry : Entry
     {
         private readonly TarFilePart filePart;
+        private readonly CompressionType type;
 
-        internal TarEntry(TarFilePart filePart)
+        internal TarEntry(TarFilePart filePart, CompressionType type)
         {
             this.filePart = filePart;
+            this.type = type;
+        }
+
+        public override CompressionType CompressionType
+        {
+            get { return type; }
         }
 
         public override uint Crc
@@ -61,7 +69,7 @@ namespace SharpCompress.Common.Tar
 
         public override bool IsDirectory
         {
-            get { return filePart.Header.FileType == 5; }
+            get { return filePart.Header.EntryType == EntryType.Directory; }
         }
 
         public override bool IsSplit
@@ -74,13 +82,20 @@ namespace SharpCompress.Common.Tar
             get { return filePart.AsEnumerable<FilePart>(); }
         }
 
-        internal static IEnumerable<TarEntry> GetEntries(Stream stream)
+        internal static IEnumerable<TarEntry> GetEntries(StreamingMode mode, Stream stream, CompressionType compressionType)
         {
-            foreach (TarHeader h in TarHeaderFactory.ReadHeaderNonseekable(stream))
+            foreach (TarHeader h in TarHeaderFactory.ReadHeader(mode, stream))
             {
                 if (h != null)
                 {
-                    yield return new TarEntry(new TarFilePart(h));
+                    if (mode == StreamingMode.Seekable)
+                    {
+                        yield return new TarEntry(new TarFilePart(h, stream), compressionType);
+                    }
+                    else
+                    {
+                        yield return new TarEntry(new TarFilePart(h, null), compressionType);
+                    }
                 }
             }
         }

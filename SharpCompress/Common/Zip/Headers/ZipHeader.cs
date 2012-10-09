@@ -1,16 +1,13 @@
 ﻿using System.IO;
-using System.Text;
-using SharpCompress.IO;
 
 namespace SharpCompress.Common.Zip.Headers
 {
     internal abstract class ZipHeader
     {
-        protected readonly static Encoding DefaultEncoding = Encoding.GetEncoding("IBM437");
-
         protected ZipHeader(ZipHeaderType type)
         {
             ZipHeaderType = type;
+            HasData = true;
         }
 
         internal ZipHeaderType ZipHeaderType
@@ -19,15 +16,10 @@ namespace SharpCompress.Common.Zip.Headers
             private set;
         }
 
-        internal abstract void Read(MarkingBinaryReader reader);
+        internal abstract void Read(BinaryReader reader);
 
         internal abstract void Write(BinaryWriter writer);
-    }
 
-    internal enum ZipHeaderType
-    {
-        LocalEntry,
-        DirectoryEntry,
-        DirectoryEnd,
+        internal bool HasData { get; set; }
     }
 }

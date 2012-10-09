@@ -1,6 +1,6 @@
 ﻿using System.IO;
 
-namespace SharpCompress.IO
+namespace SharpCompress.Common.Tar
 {
     internal class TarReadOnlySubStream : Stream
     {
@@ -8,15 +8,15 @@ namespace SharpCompress.IO
 
         public TarReadOnlySubStream(Stream stream, long bytesToRead)
         {
-            Stream = stream;
-            BytesLeftToRead = bytesToRead;
+            this.Stream = stream;
+            this.BytesLeftToRead = bytesToRead;
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                int skipBytes = amountRead % 512;
+                int skipBytes = this.amountRead % 512;
                 if (skipBytes == 0)
                 {
                     return;
@@ -27,7 +27,7 @@ namespace SharpCompress.IO
                     return;
                 }
                 var buffer = new byte[skipBytes];
-                Stream.ReadFully(buffer);
+                this.Stream.ReadFully(buffer);
             }
         }
 
@@ -94,15 +94,15 @@ namespace SharpCompress.IO
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            if (BytesLeftToRead < count)
+            if (this.BytesLeftToRead < count)
             {
-                count = (int)BytesLeftToRead;
+                count = (int)this.BytesLeftToRead;
             }
-            int read = Stream.Read(buffer, offset, count);
+            int read = this.Stream.Read(buffer, offset, count);
             if (read > 0)
             {
-                BytesLeftToRead -= read;
-                amountRead += read;
+                this.BytesLeftToRead -= read;
+                this.amountRead += read;
             }
             return read;
         }

@@ -2,11 +2,8 @@
 using System.IO;
 using System.Linq;
 using SharpCompress.Common;
-#if PORTABLE || THREEFIVE
-using SharpCompress.Common.Rar.Headers;
-#endif
-using SharpCompress.Compressor.Rar;
 using SharpCompress.Common.Rar;
+using SharpCompress.Compressor.Rar;
 
 namespace SharpCompress.Reader.Rar
 {
@@ -16,9 +13,10 @@ namespace SharpCompress.Reader.Rar
     public abstract class RarReader : AbstractReader<RarReaderEntry, RarVolume>
     {
         private RarVolume volume;
+        private readonly Unpack pack = new Unpack();
 
-        internal RarReader(Options options, IExtractionListener listener)
-            : base(options, listener)
+        internal RarReader(Options options)
+            : base(options, ArchiveType.Rar)
         {
         }
 
@@ -32,29 +30,7 @@ namespace SharpCompress.Reader.Rar
             }
         }
 
-        public override ReaderType ReaderType
-        {
-            get
-            {
-                return ReaderType.Rar;
-            }
-        }
-
         #region Open
-        /// <summary>
-        /// Opens a RarReader for Non-seeking usage with a single volume
-        /// </summary>
-        /// <param name="stream"></param>
-        /// <param name="listener"></param>
-        /// <param name="options"></param>
-        /// <returns></returns>
-        public static RarReader Open(Stream stream, IExtractionListener listener,
-            Options options = Options.KeepStreamsOpen)
-        {
-            stream.CheckNotNull("stream");
-            return new SingleVolumeRarReader(stream, options, listener);
-        }
-
         /// <summary>
         /// Opens a RarReader for Non-seeking usage with a single volume
         /// </summary>
@@ -64,21 +40,7 @@ namespace SharpCompress.Reader.Rar
         public static RarReader Open(Stream stream, Options options = Options.KeepStreamsOpen)
         {
             stream.CheckNotNull("stream");
-            return new SingleVolumeRarReader(stream, options, new NullExtractionListener());
-        }
-
-        /// <summary>
-        /// Opens a RarReader for Non-seeking usage with multiple volumes
-        /// </summary>
-        /// <param name="streams"></param>
-        /// <param name="listener"></param>
-        /// <param name="options"></param>
-        /// <returns></returns>
-        public static RarReader Open(IEnumerable<Stream> streams, IExtractionListener listener,
-            Options options = Options.KeepStreamsOpen)
-        {
-            streams.CheckNotNull("streams");
-            return new MultiVolumeRarReader(streams, options, listener);
+            return new SingleVolumeRarReader(stream, options);
         }
 
         /// <summary>
@@ -90,13 +52,13 @@ namespace SharpCompress.Reader.Rar
         public static RarReader Open(IEnumerable<Stream> streams, Options options = Options.KeepStreamsOpen)
         {
             streams.CheckNotNull("streams");
-            return new MultiVolumeRarReader(streams, options, new NullExtractionListener());
+            return new MultiVolumeRarReader(streams, options);
         }
         #endregion
 
-        internal override IEnumerable<RarReaderEntry> GetEntries(Stream stream, Options options)
+        internal override IEnumerable<RarReaderEntry> GetEntries(Stream stream)
         {
-            volume = new RarReaderVolume(stream, options);
+            volume = new RarReaderVolume(stream, Options);
             foreach (RarFilePart fp in volume.ReadFileParts())
             {
                 ValidateArchive(volume);
@@ -104,26 +66,15 @@ namespace SharpCompress.Reader.Rar
             }
         }
 
-
-        internal override void Skip(IEnumerable<FilePart> parts)
+        protected virtual IEnumerable<FilePart> CreateFilePartEnumerableForCurrentEntry()
         {
-            byte[] buffer = new byte[4096];
-            using (Stream s = new MultiVolumeReadOnlyStream(parts.Cast<RarFilePart>(), Listener))
-            {
-                while (s.Read(buffer, 0, buffer.Length) > 0)
-                {
-                }
-            }
+            return Entry.Parts;
         }
 
-        internal override void Write(IEnumerable<FilePart> parts, Stream writeStream)
+        public override EntryStream OpenEntryStream()
         {
-            using (Stream input = new MultiVolumeReadOnlyStream(parts.Cast<RarFilePart>(), Listener))
-            {
-                RarReaderEntry entry = Entry as RarReaderEntry;
-                Unpack pack = new Unpack(entry.FileHeader, input, writeStream);
-                pack.doUnpack(entry.IsSolid);
-            }
+            return new EntryStream(new RarStream(pack, Entry.FileHeader,
+                                 new MultiVolumeReadOnlyStream(CreateFilePartEnumerableForCurrentEntry().Cast<RarFilePart>(), this)));
         }
     }
 }

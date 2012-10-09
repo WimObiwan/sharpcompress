@@ -4,6 +4,10 @@ namespace SharpCompress.Common
 {
     public interface IEntry
     {
+        CompressionType CompressionType
+        {
+            get;
+        }
         DateTime? ArchivedTime
         {
             get;

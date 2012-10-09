@@ -4,14 +4,34 @@ namespace SharpCompress.IO
 {
     internal class RewindableStream : Stream
     {
-        private readonly Stream stream;
-        private readonly MemoryStream bufferStream = new MemoryStream();
+        private Stream stream;
+        private MemoryStream bufferStream = new MemoryStream();
         private bool isRewound;
 
         public RewindableStream(Stream stream)
         {
             this.stream = stream;
         }
+
+        public RewindableStream(Stream stream, MemoryStream bufferStream)
+        {
+            RewindableStream parent = stream as RewindableStream;
+            if (parent != null && !parent.isRewound)
+            {
+                this.stream = parent.stream;
+            }
+            else
+            {
+                this.stream = stream;
+            }
+            this.bufferStream = bufferStream;
+            if (bufferStream.Position != bufferStream.Length)
+            {
+                isRewound = true;
+            }
+        }
+
+        internal bool IsRecording { get; private set; }
 
         protected override void Dispose(bool disposing)
         {
@@ -22,16 +42,41 @@ namespace SharpCompress.IO
             }
         }
 
-        public void Rewind()
+        public void Rewind(bool stopRecording)
         {
             isRewound = true;
+            IsRecording = !stopRecording;
             bufferStream.Position = 0;
         }
 
-        public bool Recording
+        public void Rewind(MemoryStream buffer)
         {
-            get;
-            set;
+            if (bufferStream.Position >= buffer.Length)
+            {
+                bufferStream.Position -= buffer.Length;
+            }
+            else
+            {
+                bufferStream.TransferTo(buffer);
+                bufferStream = buffer;
+                bufferStream.Position = 0;
+            }
+            isRewound = true;
+        }
+
+        public void StartRecording()
+        {
+            //if (isRewound && bufferStream.Position != 0)
+            //   throw new System.NotImplementedException();
+            if (bufferStream.Position != 0)
+            {
+                byte[] data = bufferStream.ToArray();
+                long position = bufferStream.Position;
+                bufferStream = new MemoryStream();
+                bufferStream.Write(data, (int)position, data.Length - (int)position);
+                bufferStream.Position = 0;
+            }
+            IsRecording = true;
         }
 
         public override bool CanRead
@@ -63,11 +108,24 @@ namespace SharpCompress.IO
         {
             get
             {
-                throw new System.NotImplementedException();
+                return stream.Position + bufferStream.Position - bufferStream.Length;
             }
             set
             {
-                throw new System.NotImplementedException();
+                if (!isRewound)
+                {
+                    stream.Position = value;
+                }
+                else if (value < stream.Position - bufferStream.Length || value >= stream.Position)
+                {
+                    stream.Position = value;
+                    isRewound = false;
+                    bufferStream = new MemoryStream();
+                }
+                else
+                {
+                    bufferStream.Position = value - stream.Position + bufferStream.Length;
+                }
             }
         }
 
@@ -80,17 +138,22 @@ namespace SharpCompress.IO
                 if (read < count)
                 {
                     int tempRead = stream.Read(buffer, offset + read, count - read);
-                    if (Recording)
+                    if (IsRecording)
                     {
                         bufferStream.Write(buffer, offset + read, tempRead);
                     }
                     read += tempRead;
                 }
+                if (bufferStream.Position == bufferStream.Length && !IsRecording)
+                {
+                    isRewound = false;
+                    bufferStream = new MemoryStream();
+                }
                 return read;
             }
 
             read = stream.Read(buffer, offset, count);
-            if (Recording)
+            if (IsRecording)
             {
                 bufferStream.Write(buffer, offset, read);
             }

@@ -19,13 +19,14 @@
     <HtmlHelpName>sharpcompress</HtmlHelpName>
     <Language>en-US</Language>
     <RootNamespaceTitle>SharpCompress</RootNamespaceTitle>
-    <SandcastlePath>..\..\Program Files\Sandcastle\</SandcastlePath>
+    <SandcastlePath>..\..\Program Files (x86)\Sandcastle\</SandcastlePath>
     <DocumentationSources>
       <DocumentationSource sourceFile="bin\SharpCompress.dll" />
-<DocumentationSource sourceFile="bin\SharpCompress.xml" /></DocumentationSources>
+      <DocumentationSource sourceFile="bin\SharpCompress.xml" />
+    </DocumentationSources>
     <HelpTitle>SharpCompress</HelpTitle>
     <PresentationStyle>Prototype</PresentationStyle>
-    <HelpFileFormat>HtmlHelp1</HelpFileFormat>
+    <HelpFileFormat>HtmlHelp1, Website</HelpFileFormat>
     <MissingTags>AutoDocumentCtors, AutoDocumentDispose</MissingTags>
   </PropertyGroup>
   <!-- There are no properties for these groups.  AnyCPU needs to appear in

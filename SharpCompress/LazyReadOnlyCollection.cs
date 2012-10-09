@@ -1,39 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace SharpCompress
 {
     internal class LazyReadOnlyCollection<T> : ICollection<T>
     {
-        private LazyLoader loader;
-        private List<T> backing = new List<T>();
+        private readonly List<T> backing = new List<T>();
+        private readonly IEnumerator<T> source;
+        private bool fullyLoaded;
 
         public LazyReadOnlyCollection(IEnumerable<T> source)
         {
-            loader = new LazyLoader(source, backing);
+            this.source = source.GetEnumerator();
         }
 
-        private class LazyLoader : IEnumerator<T>, IEnumerable<T>
+        private class LazyLoader : IEnumerator<T>
         {
-            private IEnumerable<T> s;
-            private IEnumerator<T> source;
-            private ICollection<T> backing;
+            private readonly LazyReadOnlyCollection<T> lazyReadOnlyCollection;
+            private bool disposed;
+            private int index = -1;
 
-            internal LazyLoader(IEnumerable<T> s, ICollection<T> backing)
+            internal LazyLoader(LazyReadOnlyCollection<T> lazyReadOnlyCollection)
             {
-                this.s = s;
-                this.backing = backing;
+                this.lazyReadOnlyCollection = lazyReadOnlyCollection;
             }
-
-            internal bool Started { get; private set; }
-            internal bool FullyLoaded { get; private set; }
 
             #region IEnumerator<T> Members
 
             public T Current
             {
-                get { return source.Current; }
+                get { return lazyReadOnlyCollection.backing[index]; }
             }
 
             #endregion
@@ -42,10 +38,9 @@ namespace SharpCompress
 
             public void Dispose()
             {
-                if (FullyLoaded)
+                if (!disposed)
                 {
-                    source.Dispose();
-                    source = null;
+                    disposed = true;
                 }
             }
 
@@ -55,30 +50,24 @@ namespace SharpCompress
 
             object System.Collections.IEnumerator.Current
             {
-                get { throw new NotImplementedException(); }
+                get { return Current; }
             }
 
             public bool MoveNext()
             {
-                if (FullyLoaded)
+                if (index + 1 < lazyReadOnlyCollection.backing.Count)
                 {
-                    return false;
-                }
-                if (!Started)
-                {
-                    source = s.GetEnumerator();
-                }
-                Started = true;
-                if (source.MoveNext())
-                {
-                    backing.Add(source.Current);
+                    index++;
                     return true;
                 }
-                else
+                if (!lazyReadOnlyCollection.fullyLoaded && lazyReadOnlyCollection.source.MoveNext())
                 {
-                    FullyLoaded = true;
-                    return false;
+                    lazyReadOnlyCollection.backing.Add(lazyReadOnlyCollection.source.Current);
+                    index++;
+                    return true;
                 }
+                lazyReadOnlyCollection.fullyLoaded = true;
+                return false;
             }
 
             public void Reset()
@@ -87,24 +76,15 @@ namespace SharpCompress
             }
 
             #endregion
+        }
 
-            #region IEnumerable<T> Members
-
-            public IEnumerator<T> GetEnumerator()
+        internal void EnsureFullyLoaded()
+        {
+            if (!fullyLoaded)
             {
-                return this;
+                this.ForEach(x => { });
+                fullyLoaded = true;
             }
-
-            #endregion
-
-            #region IEnumerable Members
-
-            System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
-            {
-                throw new NotImplementedException();
-            }
-
-            #endregion
         }
 
         #region ICollection<T> Members
@@ -121,31 +101,23 @@ namespace SharpCompress
 
         public bool Contains(T item)
         {
-            if (loader.FullyLoaded)
-            {
-                return backing.Contains(item);
-            }
-            return backing.Concat(loader).Contains(item);
+            EnsureFullyLoaded();
+            return backing.Contains(item);
         }
 
         public void CopyTo(T[] array, int arrayIndex)
         {
-            if (loader.FullyLoaded)
-            {
-                backing.CopyTo(array, arrayIndex);
-            }
-            backing.Concat(loader).ForEach(item => array[arrayIndex++] = item);
+
+            EnsureFullyLoaded();
+            backing.CopyTo(array, arrayIndex);
         }
 
         public int Count
         {
             get
             {
-                if (loader.FullyLoaded)
-                {
-                    return backing.Count;
-                }
-                return backing.Concat(loader).Count();
+                EnsureFullyLoaded();
+                return backing.Count;
             }
         }
 
@@ -163,13 +135,10 @@ namespace SharpCompress
 
         #region IEnumerable<T> Members
 
+        //TODO check for concurrent access
         public IEnumerator<T> GetEnumerator()
         {
-            if (loader.FullyLoaded)
-            {
-                return backing.GetEnumerator();
-            }
-            return backing.Concat(loader).GetEnumerator();
+            return new LazyLoader(this);
         }
 
         #endregion
@@ -178,7 +147,7 @@ namespace SharpCompress
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
         {
-            throw new NotImplementedException();
+            return GetEnumerator();
         }
 
         #endregion

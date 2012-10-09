@@ -22,11 +22,10 @@ namespace SharpCompress.Archive.Rar
 
         /// <summary>
         /// RarArchive is SOLID (this means the Archive saved bytes by reusing information which helps for archives containing many small files).
-        /// Currently, SharpCompress cannot decompress SOLID archives.
         /// </summary>
         public static bool IsSolidArchive(this RarArchive archive)
         {
-            return archive.Volumes.First().IsSolidArchive;
+            return archive.IsSolid;
         }
     }
 }

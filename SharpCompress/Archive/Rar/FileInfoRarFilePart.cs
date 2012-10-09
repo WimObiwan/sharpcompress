@@ -6,9 +6,12 @@ namespace SharpCompress.Archive.Rar
 {
     internal class FileInfoRarFilePart : RarFilePart
     {
-        internal FileInfoRarFilePart(MarkHeader mh, FileHeader fh, FileInfo fi)
-            : base(mh, fh, true)
+        private FileInfoRarArchiveVolume volume;
+
+        internal FileInfoRarFilePart(FileInfoRarArchiveVolume volume, MarkHeader mh, FileHeader fh, FileInfo fi)
+            : base(mh, fh)
         {
+            this.volume = volume;
             FileInfo = fi;
         }
 
@@ -20,7 +23,7 @@ namespace SharpCompress.Archive.Rar
 
         internal override Stream GetStream()
         {
-            Stream stream = FileInfo.OpenRead();
+            var stream = volume.Stream;
             stream.Position = FileHeader.DataStartPosition;
             return stream;
         }

@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using SharpCompress.Common;
+
+
 #if THREEFIVE || PORTABLE
 using SharpCompress.Common.Rar.Headers;
 #endif
@@ -12,28 +14,26 @@ namespace SharpCompress.Reader
     /// <summary>
     /// A generic push reader that reads unseekable comrpessed streams.
     /// </summary>
-    public abstract class AbstractReader<TEntry, TVolume> : IDisposable, IReader
+    public abstract class AbstractReader<TEntry, TVolume> : IReader, IStreamListener
         where TEntry : Entry
         where TVolume : Volume
     {
-        private readonly Options options;
         private bool completed;
         private IEnumerator<TEntry> entriesForCurrentReadStream;
         private bool wroteCurrentEntry;
 
-        internal AbstractReader(Options options, IExtractionListener listener)
+        public event EventHandler<CompressedBytesReadEventArgs> CompressedBytesRead;
+        public event EventHandler<FilePartExtractionBeginEventArgs> FilePartExtractionBegin;
+
+        internal AbstractReader(Options options, ArchiveType archiveType)
         {
-            Listener = listener;
-            this.options = options;
-            listener.CheckNotNull("listener");
+            ArchiveType = archiveType;
+            Options = options;
         }
 
-        public abstract ReaderType ReaderType
-        {
-            get;
-        }
+        internal Options Options { get; private set; }
 
-        protected IExtractionListener Listener
+        public ArchiveType ArchiveType
         {
             get;
             private set;
@@ -66,18 +66,11 @@ namespace SharpCompress.Reader
             {
                 entriesForCurrentReadStream.Dispose();
             }
-            if (Volume.Stream != null && !options.HasFlag(Options.KeepStreamsOpen))
-            {
-                Volume.Stream.Dispose();
-            }
+            Volume.Dispose();
         }
 
         #endregion
 
-        /// <summary>
-        /// Moves to the next entry by reading more data from the underlying stream.  This skips if data has not been read.
-        /// </summary>
-        /// <returns></returns>
         public bool MoveToNextEntry()
         {
             if (completed)
@@ -86,8 +79,7 @@ namespace SharpCompress.Reader
             }
             if (entriesForCurrentReadStream == null)
             {
-                LoadStreamForReading(RequestInitialStream());
-                return true;
+                return LoadStreamForReading(RequestInitialStream());
             }
             if (!wroteCurrentEntry)
             {
@@ -114,18 +106,12 @@ namespace SharpCompress.Reader
                                                            + Entry.FilePath +
                                                            "'. A new readable stream is required.  Use Cancel if it was intended.");
             }
-            entriesForCurrentReadStream = GetEntries(stream, options).GetEnumerator();
-            if (!entriesForCurrentReadStream.MoveNext())
+            entriesForCurrentReadStream = GetEntries(stream).GetEnumerator();
+            if (entriesForCurrentReadStream.MoveNext())
             {
-                return false;
+                return true;
             }
-            return true;
-        }
-
-
-        internal virtual IEnumerable<FilePart> CreateFilePartEnumerableForCurrentEntry()
-        {
-            return Entry.Parts;
+            return false;
         }
 
         internal virtual Stream RequestInitialStream()
@@ -138,23 +124,22 @@ namespace SharpCompress.Reader
             return entriesForCurrentReadStream.MoveNext();
         }
 
-        internal abstract IEnumerable<TEntry> GetEntries(Stream stream, Options options);
+        internal abstract IEnumerable<TEntry> GetEntries(Stream stream);
 
         #region Entry Skip/Write
 
         private void SkipEntry()
         {
-            Listener.OnInformation("Skipping Entry");
             if (!Entry.IsDirectory)
             {
-                Skip(CreateFilePartEnumerableForCurrentEntry());
+                Skip();
             }
         }
 
-        internal virtual void Skip(IEnumerable<FilePart> parts)
+        internal void Skip()
         {
             var buffer = new byte[4096];
-            using (Stream s = parts.First().GetStream())
+            using (Stream s = OpenEntryStream())
             {
                 while (s.Read(buffer, 0, buffer.Length) > 0)
                 {
@@ -162,29 +147,38 @@ namespace SharpCompress.Reader
             }
         }
 
-
-        /// <summary>
-        /// Decompresses the current entry to the stream.  This cannot be called twice for the current entry.
-        /// </summary>
-        /// <param name="writableStream"></param>
         public void WriteEntryTo(Stream writableStream)
         {
+            if (wroteCurrentEntry)
+            {
+                throw new ArgumentException("WriteEntryTo or OpenEntryStream can only be called once.");
+            }
             if ((writableStream == null) || (!writableStream.CanWrite))
             {
                 throw new ArgumentNullException(
                     "A writable Stream was required.  Use Cancel if that was intended.");
             }
-            Listener.OnInformation("Writing Entry to Stream");
-            Write(CreateFilePartEnumerableForCurrentEntry(), writableStream);
+            Write(writableStream);
             wroteCurrentEntry = true;
         }
 
-        internal virtual void Write(IEnumerable<FilePart> parts, Stream writeStream)
+        internal void Write(Stream writeStream)
         {
-            using (Stream s = parts.First().GetStream())
+            using (Stream s = OpenEntryStream())
             {
                 s.TransferTo(writeStream);
             }
+        }
+
+        public virtual EntryStream OpenEntryStream()
+        {
+            if (wroteCurrentEntry)
+            {
+                throw new ArgumentException("WriteEntryTo or OpenEntryStream can only be called once.");
+            }
+            var stream = Entry.Parts.First().GetStream();
+            wroteCurrentEntry = true;
+            return new EntryStream(stream);
         }
 
         #endregion
@@ -194,6 +188,31 @@ namespace SharpCompress.Reader
             get
             {
                 return Entry;
+            }
+        }
+
+        void IStreamListener.FireCompressedBytesRead(long currentPartCompressedBytes, long compressedReadBytes)
+        {
+            if (CompressedBytesRead != null)
+            {
+                CompressedBytesRead(this, new CompressedBytesReadEventArgs()
+                {
+                    CurrentFilePartCompressedBytesRead = currentPartCompressedBytes,
+                    CompressedBytesRead = compressedReadBytes
+                });
+            }
+        }
+
+        void IStreamListener.FireFilePartExtractionBegin(string name, long size, long compressedSize)
+        {
+            if (FilePartExtractionBegin != null)
+            {
+                FilePartExtractionBegin(this, new FilePartExtractionBeginEventArgs()
+                {
+                    CompressedSize = compressedSize,
+                    Size = size,
+                    Name = name,
+                });
             }
         }
     }

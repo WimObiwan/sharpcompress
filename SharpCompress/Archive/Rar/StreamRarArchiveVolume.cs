@@ -7,22 +7,13 @@ using SharpCompress.IO;
 
 namespace SharpCompress.Archive.Rar
 {
-    internal class StreamRarArchiveVolume : RarArchiveVolume
+    internal class StreamRarArchiveVolume : RarVolume
     {
-        private bool streamOwner;
-        private Stream stream;
-
         internal StreamRarArchiveVolume(Stream stream, Options options)
-            : base(StreamingMode.Seekable, options)
+            : base(StreamingMode.Seekable, stream, options)
         {
-            this.stream = stream;
-            this.streamOwner = !options.HasFlag(Options.KeepStreamsOpen);
         }
 
-        internal override Stream Stream
-        {
-            get { return stream; }
-        }
 #if !PORTABLE
         public override FileInfo VolumeFile
         {
@@ -37,7 +28,7 @@ namespace SharpCompress.Archive.Rar
 
         internal override RarFilePart CreateFilePart(FileHeader fileHeader, MarkHeader markHeader)
         {
-            return new SeekableStreamFilePart(markHeader, fileHeader, Stream, streamOwner);
+            return new SeekableStreamFilePart(markHeader, fileHeader, Stream);
         }
     }
 }

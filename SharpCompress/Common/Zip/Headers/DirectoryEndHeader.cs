@@ -1,5 +1,4 @@
 ﻿using System.IO;
-using SharpCompress.IO;
 
 namespace SharpCompress.Common.Zip.Headers
 {
@@ -10,7 +9,7 @@ namespace SharpCompress.Common.Zip.Headers
         {
         }
 
-        internal override void Read(MarkingBinaryReader reader)
+        internal override void Read(BinaryReader reader)
         {
             VolumeNumber = reader.ReadUInt16();
             FirstVolumeWithDirectory = reader.ReadUInt16();

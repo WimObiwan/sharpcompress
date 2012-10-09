@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using SharpCompress.Archive;
+using SharpCompress.Common;
+using SharpCompress.IO;
 
 namespace SharpCompress
 {
@@ -97,6 +100,24 @@ namespace SharpCompress
         public static void Fill<T>(T[] array, T val) where T : struct
         {
             Fill(array, 0, array.Length, val);
+        }
+
+        public static void SetSize(this List<byte> list, int count)
+        {
+            if (count > list.Count)
+            {
+                for (int i = list.Count; i < count; i++)
+                {
+                    list.Add(0x0);
+                }
+            }
+            else
+            {
+                byte[] temp = new byte[count];
+                list.CopyTo(temp, 0);
+                list.Clear();
+                list.AddRange(temp);
+            }
         }
 
         /// <summary> Read a int value from the byte array at the given position (Big Endian)
@@ -235,14 +256,20 @@ namespace SharpCompress
             }
         }
 #endif
-        public static void MemSet(this List<byte> mem, int offset, int length)
+
+        public static void Initialize<T>(this T[] array, Func<T> func)
         {
-            if (mem.Count < offset + length)
+            for (int i = 0; i < array.Length; i++)
             {
-                for (int i = 0; i < offset + length; ++i)
-                {
-                    mem.Add((byte)0);
-                }
+                array[i] = func();
+            }
+        }
+
+        public static void AddRange<T>(this ICollection<T> destination, IEnumerable<T> source)
+        {
+            foreach (T item in source)
+            {
+                destination.Add(item);
             }
         }
 
@@ -301,6 +328,14 @@ namespace SharpCompress
             } while (true);
         }
 
+        public static void SkipAll(this Stream source)
+        {
+            byte[] buffer = new byte[32 * 1024];
+            do
+            {
+            } while (source.Read(buffer, 0, buffer.Length) == buffer.Length);
+        }
+
 
         public static byte[] UInt32ToBigEndianBytes(uint x)
         {
@@ -344,6 +379,17 @@ namespace SharpCompress
             return dt;
         }
 
+        public static uint DateTimeToDosTime(this DateTime? dateTime)
+        {
+            if (dateTime == null)
+            {
+                return 0;
+            }
+            return (uint)(
+                (dateTime.Value.Second / 2) | (dateTime.Value.Minute << 5) | (dateTime.Value.Hour << 11) |
+                (dateTime.Value.Day << 16) | (dateTime.Value.Month << 21) | ((dateTime.Value.Year - 1980) << 25));
+        }
+
 
         public static DateTime DosDateToDateTime(UInt32 iTime)
         {
@@ -356,21 +402,24 @@ namespace SharpCompress
             return DosDateToDateTime((UInt32)iTime);
         }
 
-        public static void TransferTo(this Stream source, Stream destination)
+        public static long TransferTo(this Stream source, Stream destination)
         {
             byte[] array = new byte[4096];
             int count;
+            long total = 0;
             while ((count = source.Read(array, 0, array.Length)) != 0)
             {
+                total += count;
                 destination.Write(array, 0, count);
             }
+            return total;
         }
 
         public static bool ReadFully(this Stream stream, byte[] buffer)
         {
             int total = 0;
             int read;
-            while ((read = stream.Read(buffer, total, buffer.Length - total)) >= 0)
+            while ((read = stream.Read(buffer, total, buffer.Length - total)) > 0)
             {
                 total += read;
                 if (total >= buffer.Length)
@@ -385,5 +434,76 @@ namespace SharpCompress
         {
             return source.Replace('\0', ' ').Trim();
         }
+
+        public static bool BinaryEquals(this byte[] source, byte[] target)
+        {
+            if (source.Length != target.Length)
+            {
+                return false;
+            }
+            for (int i = 0; i < source.Length; ++i)
+            {
+                if (source[i] != target[i])
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+
+        internal static void Extract<TEntry, TVolume>(this TEntry entry,
+            AbstractArchive<TEntry, TVolume> archive, Stream streamToWriteTo)
+            where TEntry : IArchiveEntry
+            where TVolume : IVolume
+        {
+            if (entry.IsDirectory)
+            {
+                throw new ExtractionException("Entry is a file directory and cannot be extracted.");
+            }
+
+            archive.EnsureEntriesLoaded();
+            archive.FireEntryExtractionBegin(entry);
+            ((IStreamListener)archive).FireFilePartExtractionBegin(entry.FilePath, entry.Size, entry.CompressedSize);
+            using (Stream s = new ListeningStream(archive, entry.OpenEntryStream()))
+            {
+                s.TransferTo(streamToWriteTo);
+            }
+            archive.FireEntryExtractionEnd(entry);
+        }
+
+#if PORTABLE
+        public static void CopyTo(this byte[] array, byte[] destination, int index)
+        {
+            Array.Copy(array, 0, destination, index, array.Length);
+        }
+
+        public static long HostToNetworkOrder(long host)
+        {
+            return (int)((long)HostToNetworkOrder((int)host)
+                & unchecked((long)(unchecked((ulong)-1))) << 32
+                | ((long)HostToNetworkOrder((int)((int)host >> 32)) & unchecked((long)(unchecked((ulong)-1)))));
+        }
+        public static int HostToNetworkOrder(int host)
+        {
+            return (int)((int)(HostToNetworkOrder((short)host) & -1) << 16 | (HostToNetworkOrder((short)(host >> 16)) & -1));
+        }
+        public static short HostToNetworkOrder(short host)
+        {
+            return (short)((int)(host & 255) << 8 | ((int)host >> 8 & 255));
+        }
+        public static long NetworkToHostOrder(long network)
+        {
+            return HostToNetworkOrder(network);
+        }
+        public static int NetworkToHostOrder(int network)
+        {
+            return HostToNetworkOrder(network);
+        }
+        public static short NetworkToHostOrder(short network)
+        {
+            return HostToNetworkOrder(network);
+        }
+#endif
     }
 }

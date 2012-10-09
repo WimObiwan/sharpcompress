@@ -1,22 +1,56 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using SharpCompress.Common.Zip.Headers;
 
 namespace SharpCompress.Common.Zip
 {
     public class ZipEntry : Entry
     {
-        private readonly bool directory;
         private readonly ZipFilePart filePart;
         private readonly DateTime? lastModifiedTime;
 
         internal ZipEntry(ZipFilePart filePart)
         {
-            this.filePart = filePart;
-            directory = filePart.Header.Name.EndsWith("/");
-            lastModifiedTime = Utility.DosDateToDateTime(filePart.Header.LastModifiedDate,
-                                                         filePart.Header.LastModifiedTime);
+            if (filePart != null)
+            {
+                this.filePart = filePart;
+                lastModifiedTime = Utility.DosDateToDateTime(filePart.Header.LastModifiedDate,
+                                                             filePart.Header.LastModifiedTime);
+            }
+        }
+
+        public override CompressionType CompressionType
+        {
+            get
+            {
+                switch (filePart.Header.CompressionMethod)
+                {
+                    case ZipCompressionMethod.BZip2:
+                        {
+                            return CompressionType.BZip2;
+                        }
+                    case ZipCompressionMethod.Deflate:
+                        {
+                            return CompressionType.Deflate;
+                        }
+                    case ZipCompressionMethod.LZMA:
+                        {
+                            return CompressionType.LZMA;
+                        }
+                    case ZipCompressionMethod.PPMd:
+                        {
+                            return CompressionType.PPMd;
+                        }
+                    case ZipCompressionMethod.None:
+                        {
+                            return CompressionType.None;
+                        }
+                    default:
+                        {
+                            return CompressionType.Unknown;
+                        }
+                }
+            }
         }
 
         public override uint Crc
@@ -61,12 +95,12 @@ namespace SharpCompress.Common.Zip
 
         public override bool IsEncrypted
         {
-            get { return false; }
+            get { return FlagUtility.HasFlag(filePart.Header.Flags, HeaderFlags.Encrypted); }
         }
 
         public override bool IsDirectory
         {
-            get { return directory; }
+            get { return filePart.Header.IsDirectory; }
         }
 
         public override bool IsSplit
@@ -77,28 +111,6 @@ namespace SharpCompress.Common.Zip
         internal override IEnumerable<FilePart> Parts
         {
             get { return filePart.AsEnumerable<FilePart>(); }
-        }
-
-        internal static IEnumerable<ZipEntry> GetEntries(Stream stream)
-        {
-            foreach (ZipHeader h in ZipHeaderFactory.ReadHeaderNonseekable(stream))
-            {
-                if (h != null)
-                {
-                    switch (h.ZipHeaderType)
-                    {
-                        case ZipHeaderType.LocalEntry:
-                            {
-                                yield return new ZipEntry(new ZipFilePart(h as LocalEntryHeader));
-                            }
-                            break;
-                        case ZipHeaderType.DirectoryEnd:
-                            {
-                                yield break;
-                            }
-                    }
-                }
-            }
         }
     }
 }

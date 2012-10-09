@@ -4,39 +4,22 @@ namespace SharpCompress.Common.GZip
 {
     public class GZipVolume : Volume
     {
-        private Stream stream;
 #if !PORTABLE
-        private FileInfo fileInfo;
+        private readonly FileInfo fileInfo;
 #endif
 
         public GZipVolume(Stream stream, Options options)
+            : base(stream, options)
         {
-            this.stream = stream;
-            Options = options;
         }
 
 #if !PORTABLE
         public GZipVolume(FileInfo fileInfo, Options options)
+            : base(fileInfo.OpenRead(), options)
         {
             this.fileInfo = fileInfo;
-            this.stream = fileInfo.OpenRead();
-            Options = options;
         }
 #endif
-
-        internal override Stream Stream
-        {
-            get
-            {
-                return stream;
-            }
-        }
-
-        internal Options Options
-        {
-            get;
-            private set;
-        }
 
 #if !PORTABLE
         /// <summary>

@@ -7,15 +7,7 @@ namespace SharpCompress.Common.Tar
 {
     internal static class TarHeaderFactory
     {
-        private const uint ENTRY_HEADER_BYTES = 0x04034b50;
-        private const uint POST_DATA_DESCRIPTOR = 0x08074b50;
-        private const uint DIRECTORY_START_HEADER_BYTES = 0x02014b50;
-        private const uint DIRECTORY_END_HEADER_BYTES = 0x06054b50;
-        private const uint DIGITAL_SIGNATURE = 0x05054b50;
-
-        private const uint ZIP64_END_OF_CENTRAL_DIRECTORY = 0x07064b50;
-
-        internal static IEnumerable<TarHeader> ReadHeaderNonseekable(Stream stream)
+        internal static IEnumerable<TarHeader> ReadHeader(StreamingMode mode, Stream stream)
         {
             while (true)
             {
@@ -28,7 +20,25 @@ namespace SharpCompress.Common.Tar
                     {
                         yield break;
                     }
-                    header.PackedStream = new TarReadOnlySubStream(stream, header.Size);
+                    switch (mode)
+                    {
+                        case StreamingMode.Seekable:
+                            {
+                                header.DataStartPosition = reader.BaseStream.Position;
+                                //skip to nearest 512
+                                reader.BaseStream.Position += PadTo512(header.Size);
+                            }
+                            break;
+                        case StreamingMode.Streaming:
+                            {
+                                header.PackedStream = new TarReadOnlySubStream(stream, header.Size);
+                            }
+                            break;
+                        default:
+                            {
+                                throw new InvalidFormatException("Invalid StreamingMode");
+                            }
+                    }
                 }
                 catch
                 {
@@ -36,6 +46,16 @@ namespace SharpCompress.Common.Tar
                 }
                 yield return header;
             }
+        }
+
+        private static long PadTo512(long size)
+        {
+            int zeros = (int)(size % 512);
+            if (zeros == 0)
+            {
+                return size;
+            }
+            return 512 - zeros + size;
         }
     }
 }

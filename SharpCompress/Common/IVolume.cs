@@ -1,10 +1,11 @@
-﻿#if !PORTABLE
+﻿using System;
+#if !PORTABLE
 using System.IO;
 #endif
 
 namespace SharpCompress.Common
 {
-    public interface IVolume
+    public interface IVolume : IDisposable
     {
 #if !PORTABLE
         /// <summary>

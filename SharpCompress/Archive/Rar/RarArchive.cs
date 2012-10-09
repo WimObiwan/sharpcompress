@@ -3,13 +3,27 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using SharpCompress.Common;
+using SharpCompress.Common.Rar;
 using SharpCompress.Common.Rar.Headers;
+using SharpCompress.Compressor.Rar;
 using SharpCompress.IO;
+using SharpCompress.Reader;
+using SharpCompress.Reader.Rar;
 
 namespace SharpCompress.Archive.Rar
 {
-    public class RarArchive : AbstractArchive<RarArchiveEntry, RarArchiveVolume>
+    public class RarArchive : AbstractArchive<RarArchiveEntry, RarVolume>
     {
+        private readonly Unpack unpack = new Unpack();
+
+        internal Unpack Unpack
+        {
+            get
+            {
+                return unpack;
+            }
+        }
+
 #if !PORTABLE
         /// <summary>
         /// Constructor with a FileInfo object to an existing file.
@@ -17,11 +31,11 @@ namespace SharpCompress.Archive.Rar
         /// <param name="fileInfo"></param>
         /// <param name="options"></param>
         internal RarArchive(FileInfo fileInfo, Options options)
-            : base(fileInfo, options)
+            : base(ArchiveType.Rar, fileInfo, options)
         {
         }
 
-        protected override IEnumerable<RarArchiveVolume> LoadVolumes(FileInfo file, Options options)
+        protected override IEnumerable<RarVolume> LoadVolumes(FileInfo file, Options options)
         {
             return RarArchiveVolumeFactory.GetParts(file, options);
         }
@@ -33,18 +47,33 @@ namespace SharpCompress.Archive.Rar
         /// <param name="streams"></param>
         /// <param name="options"></param>
         internal RarArchive(IEnumerable<Stream> streams, Options options)
-            : base(streams, options)
+            : base(ArchiveType.Rar, streams, options)
         {
         }
 
-        protected override IEnumerable<RarArchiveEntry> LoadEntries(IEnumerable<RarArchiveVolume> volumes)
+        protected override IEnumerable<RarArchiveEntry> LoadEntries(IEnumerable<RarVolume> volumes)
         {
             return RarArchiveEntryFactory.GetEntries(this, volumes);
         }
 
-        protected override IEnumerable<RarArchiveVolume> LoadVolumes(IEnumerable<Stream> streams, Options options)
+        protected override IEnumerable<RarVolume> LoadVolumes(IEnumerable<Stream> streams, Options options)
         {
             return RarArchiveVolumeFactory.GetParts(streams, options);
+        }
+
+        protected override IReader CreateReaderForSolidExtraction()
+        {
+            var stream = Volumes.First().Stream;
+            stream.Position = 0;
+            return RarReader.Open(stream);
+        }
+
+        public override bool IsSolid
+        {
+            get
+            {
+                return Volumes.First().IsSolidArchive;
+            }
         }
 
         #region Creation
@@ -134,19 +163,6 @@ namespace SharpCompress.Archive.Rar
         }
 
 #if !PORTABLE
-        public static void ExtractToDirectory(string sourceArchive, string destinationDirectoryName)
-        {
-            RarArchive archive = Open(sourceArchive);
-            foreach (RarArchiveEntry entry in archive.Entries)
-            {
-                string path = Path.Combine(destinationDirectoryName, Path.GetFileName(entry.FilePath));
-                using (FileStream output = File.OpenWrite(path))
-                {
-                    entry.WriteTo(output);
-                }
-            }
-        }
-
         public static bool IsRarFile(string filePath)
         {
             return IsRarFile(new FileInfo(filePath));
@@ -167,15 +183,20 @@ namespace SharpCompress.Archive.Rar
 
         public static bool IsRarFile(Stream stream)
         {
+            return IsRarFile(stream, Options.None);
+        }
+
+        public static bool IsRarFile(Stream stream, Options options)
+        {
             try
             {
-                var headerFactory = new RarHeaderFactory(StreamingMode.Seekable, Options.CheckForSFX);
+                var headerFactory = new RarHeaderFactory(StreamingMode.Seekable, options);
                 RarHeader header = headerFactory.ReadHeaders(stream).FirstOrDefault();
                 if (header == null)
                 {
                     return false;
                 }
-                return Enum.IsDefined(typeof (HeaderType), header.HeaderType);
+                return Enum.IsDefined(typeof(HeaderType), header.HeaderType);
             }
             catch
             {

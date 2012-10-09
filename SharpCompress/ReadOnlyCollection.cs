@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace SharpCompress
 {
-    public class ReadOnlyCollection<T> : ICollection<T>
+    internal class ReadOnlyCollection<T> : ICollection<T>
     {
         private ICollection<T> collection;
 

@@ -1,21 +1,20 @@
 ﻿using System.IO;
-using SharpCompress.IO;
 
 namespace SharpCompress.Common.Zip.Headers
 {
-    internal class DirectoryEntryHeader : ZipHeader
+    internal class DirectoryEntryHeader : ZipFileEntry
     {
         public DirectoryEntryHeader()
             : base(ZipHeaderType.DirectoryEntry)
         {
         }
 
-        internal override void Read(MarkingBinaryReader reader)
+        internal override void Read(BinaryReader reader)
         {
             Version = reader.ReadUInt16();
             VersionNeededToExtract = reader.ReadUInt16();
-            Flags = reader.ReadUInt16();
-            CompressionMethod = reader.ReadUInt16();
+            Flags = (HeaderFlags)reader.ReadUInt16();
+            CompressionMethod = (ZipCompressionMethod)reader.ReadUInt16();
             LastModifiedTime = reader.ReadUInt16();
             LastModifiedDate = reader.ReadUInt16();
             Crc = reader.ReadUInt32();
@@ -29,26 +28,30 @@ namespace SharpCompress.Common.Zip.Headers
             ExternalFileAttributes = reader.ReadUInt32();
             RelativeOffsetOfEntryHeader = reader.ReadUInt32();
 
-            Name = DefaultEncoding.GetString(reader.ReadBytes(nameLength));
-            Extra = reader.ReadBytes(extraLength);
-            Comment = reader.ReadBytes(commentLength);
+            byte[] name = reader.ReadBytes(nameLength);
+            Name = DecodeString(name);
+            byte[] extra = reader.ReadBytes(extraLength);
+            byte[] comment = reader.ReadBytes(commentLength);
+            Comment = DecodeString(comment);
+            LoadExtra(extra);
         }
 
         internal override void Write(BinaryWriter writer)
         {
             writer.Write(Version);
             writer.Write(VersionNeededToExtract);
-            writer.Write(Flags);
-            writer.Write(CompressionMethod);
+            writer.Write((ushort)Flags);
+            writer.Write((ushort)CompressionMethod);
             writer.Write(LastModifiedTime);
             writer.Write(LastModifiedDate);
             writer.Write(Crc);
             writer.Write(CompressedSize);
             writer.Write(UncompressedSize);
 
-            byte[] nameBytes = DefaultEncoding.GetBytes(Name);
+            byte[] nameBytes = EncodeString(Name);
             writer.Write((ushort)nameBytes.Length);
-            writer.Write((ushort)Extra.Length);
+            //writer.Write((ushort)Extra.Length);
+            writer.Write((ushort)0);
             writer.Write((ushort)Comment.Length);
 
             writer.Write(DiskNumberStart);
@@ -57,29 +60,11 @@ namespace SharpCompress.Common.Zip.Headers
             writer.Write(RelativeOffsetOfEntryHeader);
 
             writer.Write(nameBytes);
-            writer.Write(Extra);
+            // writer.Write(Extra);
             writer.Write(Comment);
         }
 
         internal ushort Version { get; private set; }
-
-        public ushort Flags { get; set; }
-
-        public ushort CompressionMethod { get; set; }
-
-        public ushort LastModifiedTime { get; set; }
-
-        public ushort LastModifiedDate { get; set; }
-
-        public uint Crc { get; set; }
-
-        public uint CompressedSize { get; set; }
-
-        public uint UncompressedSize { get; set; }
-
-        public string Name { get; private set; }
-
-        internal Stream PackedStream { get; set; }
 
         public ushort VersionNeededToExtract { get; set; }
 
@@ -91,8 +76,6 @@ namespace SharpCompress.Common.Zip.Headers
 
         public ushort DiskNumberStart { get; set; }
 
-        public byte[] Extra { get; private set; }
-
-        public byte[] Comment { get; private set; }
+        public string Comment { get; private set; }
     }
 }

@@ -25,7 +25,8 @@
 // ------------------------------------------------------------------
 
 using System;
-using System.IO;
+using SharpCompress.Common.Tar.Headers;
+using SharpCompress.Common;
 
 namespace SharpCompress.Compressor.Deflate
 {
@@ -370,7 +371,7 @@ namespace SharpCompress.Compressor.Deflate
                 }
             } while (!done);
             byte[] a = list.ToArray();
-            return GZipStream.iso8859dash1.GetString(a, 0, a.Length);
+            return ArchiveEncoding.Default.GetString(a, 0, a.Length);
         }
 
 
@@ -392,7 +393,7 @@ namespace SharpCompress.Compressor.Deflate
                 throw new ZlibException("Bad GZIP header.");
 
             Int32 timet = BitConverter.ToInt32(header, 4);
-            _GzipMtime = GZipStream._unixEpoch.AddSeconds(timet);
+            _GzipMtime = TarHeader.Epoch.AddSeconds(timet);
             totalBytesRead += n;
             if ((header[3] & 0x04) == 0x04)
             {
@@ -565,68 +566,5 @@ namespace SharpCompress.Compressor.Deflate
             Reader,
             Undefined,
         }
-
-
-        public static void CompressString(String s, Stream compressor)
-        {
-            byte[] uncompressed = System.Text.Encoding.UTF8.GetBytes(s);
-            using (compressor)
-            {
-                compressor.Write(uncompressed, 0, uncompressed.Length);
-            }
-        }
-
-        public static void CompressBuffer(byte[] b, Stream compressor)
-        {
-            // workitem 8460
-            using (compressor)
-            {
-                compressor.Write(b, 0, b.Length);
-            }
-        }
-
-        public static String UncompressString(byte[] compressed, Stream decompressor)
-        {
-            // workitem 8460
-            byte[] working = new byte[1024];
-            var encoding = System.Text.Encoding.UTF8;
-            using (var output = new MemoryStream())
-            {
-                using (decompressor)
-                {
-                    int n;
-                    while ((n = decompressor.Read(working, 0, working.Length)) != 0)
-                    {
-                        output.Write(working, 0, n);
-                    }
-                }
-
-                // reset to allow read from start
-                output.Seek(0, SeekOrigin.Begin);
-                var sr = new StreamReader(output, encoding);
-                return sr.ReadToEnd();
-            }
-        }
-
-        public static byte[] UncompressBuffer(byte[] compressed, Stream decompressor)
-        {
-            // workitem 8460
-            byte[] working = new byte[1024];
-            using (var output = new MemoryStream())
-            {
-                using (decompressor)
-                {
-                    int n;
-                    while ((n = decompressor.Read(working, 0, working.Length)) != 0)
-                    {
-                        output.Write(working, 0, n);
-                    }
-                }
-                return output.ToArray();
-            }
-        }
-
     }
-
-
 }

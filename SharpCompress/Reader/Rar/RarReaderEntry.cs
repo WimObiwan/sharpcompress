@@ -27,6 +27,11 @@ namespace SharpCompress.Reader.Rar
             get { return Part.FileHeader; }
         }
 
+        public override CompressionType CompressionType
+        {
+            get { return CompressionType.Rar; }
+        }
+
         /// <summary>
         /// The compressed file size
         /// </summary>

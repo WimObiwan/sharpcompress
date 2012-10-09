@@ -1,7 +1,7 @@
 ﻿using SharpCompress.Compressor.Rar.decode;
 using SharpCompress.Compressor.Rar.VM;
 
-namespace SharpCompress
+namespace SharpCompress.Compressor.Rar
 {
     internal static class UnpackUtility
     {

@@ -128,7 +128,6 @@ namespace SharpCompress.Compressor.Rar.VM
 
         internal void SetLowEndianValue(List<byte> mem, int offset, int value)
         {
-            mem.MemSet(offset, 4);
             mem[offset + 0] = (byte)(value & 0xff);
             mem[offset + 1] = (byte)(Utility.URShift(value, 8) & 0xff);
             mem[offset + 2] = (byte)(Utility.URShift(value, 16) & 0xff);
@@ -159,7 +158,7 @@ namespace SharpCompress.Compressor.Rar.VM
                 R[i] = prg.InitR[i];
             }
 
-            long globalSize = Math.Min(prg.GlobalData.Count, VM_GLOBALMEMSIZE) & unchecked((int)0xffFFffFF);
+            long globalSize = (long)(Math.Min(prg.GlobalData.Count, VM_GLOBALMEMSIZE)) & 0xffFFffFF;
             if (globalSize != 0)
             {
                 for (int i = 0; i < globalSize; i++)
@@ -168,7 +167,7 @@ namespace SharpCompress.Compressor.Rar.VM
                     Mem[VM_GLOBALMEMADDR + i] = prg.GlobalData[i];
                 }
             }
-            long staticSize = Math.Min(prg.StaticData.Count, VM_GLOBALMEMSIZE - globalSize) & unchecked((int)0xffFFffFF);
+            long staticSize = (long)(Math.Min(prg.StaticData.Count, VM_GLOBALMEMSIZE - globalSize)) & 0xffFFffFF;
             if (staticSize != 0)
             {
                 for (int i = 0; i < staticSize; i++)
@@ -202,12 +201,12 @@ namespace SharpCompress.Compressor.Rar.VM
 
             prg.GlobalData.Clear();
 
-            int dataSize = System.Math.Min(GetValue(false, Mem, VM_GLOBALMEMADDR + 0x30), VM_GLOBALMEMSIZE - VM_FIXEDGLOBALSIZE);
+            int dataSize = Math.Min(GetValue(false, Mem, VM_GLOBALMEMADDR + 0x30), VM_GLOBALMEMSIZE - VM_FIXEDGLOBALSIZE);
             if (dataSize != 0)
             {
                 //prg.GlobalData.Clear();
                 // ->GlobalData.Add(dataSize+VM_FIXEDGLOBALSIZE);
-
+                prg.GlobalData.SetSize(dataSize + VM_FIXEDGLOBALSIZE);
                 for (int i = 0; i < dataSize + VM_FIXEDGLOBALSIZE; i++)
                 // memcpy(&Prg->GlobalData[0],&Mem[VM_GLOBALMEMADDR],DataSize+VM_FIXEDGLOBALSIZE);
                 {
@@ -993,13 +992,13 @@ namespace SharpCompress.Compressor.Rar.VM
         private VMStandardFilters IsStandardFilter(byte[] code, int codeSize)
         {
             VMStandardFilterSignature[] stdList = new VMStandardFilterSignature[]{
-				new VMStandardFilterSignature(53, 0xad576887, VMStandardFilters.VMSF_E8), 
-				new VMStandardFilterSignature(57, 0x3cd7e57e, VMStandardFilters.VMSF_E8E9), 
-				new VMStandardFilterSignature(120, 0x3769893f, VMStandardFilters.VMSF_ITANIUM), 
-				new VMStandardFilterSignature(29, 0x0e06077d, VMStandardFilters.VMSF_DELTA), 
-				new VMStandardFilterSignature(149, 0x1c2c5dc8, VMStandardFilters.VMSF_RGB), 
-				new VMStandardFilterSignature(216, 0xbc85e701, VMStandardFilters.VMSF_AUDIO), 
-				new VMStandardFilterSignature(40, 0x46b9c560, VMStandardFilters.VMSF_UPCASE)};
+                new VMStandardFilterSignature(53, 0xad576887, VMStandardFilters.VMSF_E8), 
+                new VMStandardFilterSignature(57, 0x3cd7e57e, VMStandardFilters.VMSF_E8E9), 
+                new VMStandardFilterSignature(120, 0x3769893f, VMStandardFilters.VMSF_ITANIUM), 
+                new VMStandardFilterSignature(29, 0x0e06077d, VMStandardFilters.VMSF_DELTA), 
+                new VMStandardFilterSignature(149, 0x1c2c5dc8, VMStandardFilters.VMSF_RGB), 
+                new VMStandardFilterSignature(216, 0xbc85e701, VMStandardFilters.VMSF_AUDIO), 
+                new VMStandardFilterSignature(40, 0x46b9c560, VMStandardFilters.VMSF_UPCASE)};
             uint CodeCRC = RarCRC.CheckCrc(0xffffffff, code, 0, code.Length) ^ 0xffffffff;
             for (int i = 0; i < stdList.Length; i++)
             {
@@ -1217,20 +1216,29 @@ namespace SharpCompress.Compressor.Rar.VM
                             for (int i = curChannel, byteCount = 0; i < dataSize; i += channels, byteCount++)
                             {
                                 D3 = D2;
-                                D2 = (int)prevDelta - D1;
+                                D2 = (int)(prevDelta - D1);
                                 D1 = (int)prevDelta;
 
                                 long predicted = 8 * prevByte + K1 * D1 + K2 * D2 + K3 * D3;
-                                predicted = (Utility.URShift(predicted, 3)) & 0xff;
+                                predicted = Utility.URShift(predicted, 3) & 0xff;
 
-                                long curByte = Mem[srcPos++] & 0xff;
+                                long curByte = (long)(Mem[srcPos++]);
 
-                                predicted = (predicted - curByte) & UINT_MASK;
+                                predicted -= curByte;
                                 Mem[destDataPos + i] = (byte)predicted;
                                 prevDelta = (byte)(predicted - prevByte);
+                                //fix java byte
+                                if (prevDelta >= 128)
+                                {
+                                    prevDelta = 0 - (256 - prevDelta);
+                                }
                                 prevByte = predicted;
-
-                                int D = ((byte)curByte) << 3;
+                                //fix java byte
+                                if (curByte >= 128)
+                                {
+                                    curByte = 0 - (256 - curByte);
+                                }
+                                int D = ((int)curByte) << 3;
 
                                 Dif[0] += System.Math.Abs(D);
                                 Dif[1] += System.Math.Abs(D - D1);

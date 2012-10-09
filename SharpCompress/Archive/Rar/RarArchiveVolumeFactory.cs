@@ -7,12 +7,13 @@ using System.Text;
 using SharpCompress.Common.Rar.Headers;
 #endif
 using SharpCompress.Common;
+using SharpCompress.Common.Rar;
 
 namespace SharpCompress.Archive.Rar
 {
     internal static class RarArchiveVolumeFactory
     {
-        internal static IEnumerable<RarArchiveVolume> GetParts(IEnumerable<Stream> streams, Options options)
+        internal static IEnumerable<RarVolume> GetParts(IEnumerable<Stream> streams, Options options)
         {
             foreach (Stream s in streams)
             {
@@ -26,7 +27,7 @@ namespace SharpCompress.Archive.Rar
         }
 
 #if !PORTABLE
-        internal static IEnumerable<RarArchiveVolume> GetParts(FileInfo fileInfo, Options options)
+        internal static IEnumerable<RarVolume> GetParts(FileInfo fileInfo, Options options)
         {
             FileInfoRarArchiveVolume part = new FileInfoRarArchiveVolume(fileInfo, options);
             yield return part;
@@ -38,7 +39,7 @@ namespace SharpCompress.Archive.Rar
             ArchiveHeader ah = part.ArchiveHeader;
             fileInfo = GetNextFileInfo(ah, part.FileParts.FirstOrDefault() as FileInfoRarFilePart);
             //we use fileinfo because rar is dumb and looks at file names rather than archive info for another volume
-            while (fileInfo != null)
+            while (fileInfo != null && fileInfo.Exists)
             {
                 part = new FileInfoRarArchiveVolume(fileInfo, options);
 

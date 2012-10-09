@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using SharpCompress.Common;
 using SharpCompress.Common.Rar.Headers;
+using SharpCompress.Compressor.PPMd.H;
 using SharpCompress.Compressor.Rar.decode;
 using SharpCompress.Compressor.Rar.PPM;
 using SharpCompress.Compressor.Rar.VM;
@@ -38,6 +40,10 @@ namespace SharpCompress.Compressor.Rar
         }
         public long DestSize
         {
+            get
+            {
+                return destUnpSize;
+            }
             set
             {
                 this.destUnpSize = value;
@@ -127,18 +133,13 @@ namespace SharpCompress.Compressor.Rar
 
         private FileHeader fileHeader;
 
-        public Unpack(FileHeader fileHeader, Stream readStream, Stream writeStream)
+        public Unpack()
         {
-            base.readStream = readStream;
-            base.writeStream = writeStream;
-            this.fileHeader = fileHeader;
             window = null;
             //externalWindow = false;
             suspended = false;
             unpAllBuf = false;
             unpSomeRead = false;
-            destUnpSize = fileHeader.UncompressedSize;
-            init(null);
         }
 
         public void init(byte[] window)
@@ -156,15 +157,28 @@ namespace SharpCompress.Compressor.Rar
             unpInitData(false);
         }
 
-        public void doUnpack(bool solid)
+        public void doUnpack(FileHeader fileHeader, Stream readStream, Stream writeStream)
         {
-            if (solid)
+            destUnpSize = fileHeader.UncompressedSize;
+            this.fileHeader = fileHeader;
+            base.writeStream = writeStream;
+            base.readStream = readStream;
+            bool solid = FlagUtility.HasFlag(fileHeader.FileFlags, FileFlags.SOLID);
+            if (!solid)
             {
-                throw new InvalidRarFormatException("SOLID archives are unsupported at this time.");
+                init(null);
             }
+            suspended = false;
+            doUnpack();
+        }
+
+        public void doUnpack()
+        {
+            bool solid = FlagUtility.HasFlag(fileHeader.FileFlags, FileFlags.SOLID);
             if (fileHeader.PackingMethod == 0x30)
             {
                 unstoreFile();
+                return;
             }
             switch (fileHeader.RarVersion)
             {
@@ -198,6 +212,8 @@ namespace SharpCompress.Compressor.Rar
                 writeStream.Write(buffer, 0, code);
                 if (destUnpSize >= 0)
                     destUnpSize -= code;
+                if (suspended)
+                    return;
             }
         }
 
@@ -260,7 +276,7 @@ namespace SharpCompress.Compressor.Rar
                 {
 
                     UnpWriteBuf();
-                    if (writtenFileSize > destUnpSize)
+                    if (destUnpSize <= 0)
                     {
                         return;
                     }
@@ -544,7 +560,8 @@ namespace SharpCompress.Compressor.Rar
                             // save global data for next script execution
                             if (ParentPrg.GlobalData.Count < Prg.GlobalData.Count)
                             {
-                                ParentPrg.GlobalData.Clear(); // ->GlobalData.Alloc(Prg->GlobalData.Size());
+                                //ParentPrg.GlobalData.Clear(); // ->GlobalData.Alloc(Prg->GlobalData.Size());
+                                ParentPrg.GlobalData.SetSize(Prg.GlobalData.Count);
                             }
                             // memcpy(&ParentPrg->GlobalData[VM_FIXEDGLOBALSIZE],&Prg->GlobalData[VM_FIXEDGLOBALSIZE],Prg->GlobalData.Size()-VM_FIXEDGLOBALSIZE);
                             for (int i = 0; i < Prg.GlobalData.Count - RarVM.VM_FIXEDGLOBALSIZE; i++)
@@ -588,7 +605,7 @@ namespace SharpCompress.Compressor.Rar
                                 // copy global data from previous script execution
                                 // if any
                                 // NextPrg->GlobalData.Alloc(ParentPrg->GlobalData.Size());
-                                NextPrg.GlobalData.Clear();
+                                NextPrg.GlobalData.SetSize(pPrg.GlobalData.Count);
                                 // memcpy(&NextPrg->GlobalData[VM_FIXEDGLOBALSIZE],&ParentPrg->GlobalData[VM_FIXEDGLOBALSIZE],ParentPrg->GlobalData.Size()-VM_FIXEDGLOBALSIZE);
                                 for (int i = 0; i < pPrg.GlobalData.Count - RarVM.VM_FIXEDGLOBALSIZE; i++)
                                 {
@@ -603,7 +620,7 @@ namespace SharpCompress.Compressor.Rar
                                 // save global data for next script execution
                                 if (pPrg.GlobalData.Count < NextPrg.GlobalData.Count)
                                 {
-                                    pPrg.GlobalData.Clear();
+                                    pPrg.GlobalData.SetSize(NextPrg.GlobalData.Count);
                                 }
                                 // memcpy(&ParentPrg->GlobalData[VM_FIXEDGLOBALSIZE],&NextPrg->GlobalData[VM_FIXEDGLOBALSIZE],NextPrg->GlobalData.Size()-VM_FIXEDGLOBALSIZE);
                                 for (int i = 0; i < NextPrg.GlobalData.Count - RarVM.VM_FIXEDGLOBALSIZE; i++)
@@ -630,6 +647,7 @@ namespace SharpCompress.Compressor.Rar
                         writeStream.Write(FilteredData, 0, FilteredDataSize);
                         unpSomeRead = true;
                         writtenFileSize += FilteredDataSize;
+                        destUnpSize -= FilteredDataSize;
                         WrittenBorder = BlockEnd;
                         WriteSize = (unpPtr - WrittenBorder) & Compress.MAXWINMASK;
                     }
@@ -673,19 +691,19 @@ namespace SharpCompress.Compressor.Rar
 
         private void UnpWriteData(byte[] data, int offset, int size)
         {
-            if (writtenFileSize >= destUnpSize)
+            if (destUnpSize <= 0)
             {
                 return;
             }
             int writeSize = size;
-            long leftToWrite = destUnpSize - writtenFileSize;
-            if (writeSize > leftToWrite)
+            if (writeSize > destUnpSize)
             {
-                writeSize = (int)leftToWrite;
+                writeSize = (int)destUnpSize;
             }
             writeStream.Write(data, offset, writeSize);
 
             writtenFileSize += size;
+            destUnpSize -= size;
         }
 
         private void insertOldDist(int distance)
@@ -1133,7 +1151,7 @@ namespace SharpCompress.Compressor.Rar
                 // StackFilter->Prg.GlobalData.Reset();
                 // StackFilter->Prg.GlobalData.Add(VM_FIXEDGLOBALSIZE);
                 StackFilter.Program.GlobalData.Clear();
-                //StackFilter.Prg.GlobalData.setSize(RarVM.VM_FIXEDGLOBALSIZE);
+                StackFilter.Program.GlobalData.SetSize(RarVM.VM_FIXEDGLOBALSIZE);
             }
 
             // byte *GlobalData=&StackFilter->Prg.GlobalData[0];
@@ -1156,7 +1174,10 @@ namespace SharpCompress.Compressor.Rar
             // *)&GlobalData[0x2c],StackFilter->ExecCount);
             rarVM.SetLowEndianValue(globalData, 0x2c, StackFilter.ExecCount);
             // memset(&GlobalData[0x30],0,16);
-            globalData.MemSet(0x30, 16);
+            for (int i = 0; i < 16; i++)
+            {
+                globalData[0x30 + i] = 0x0;
+            }
             if ((firstByte & 8) != 0)
             // put data block passed as parameter if any
             {
@@ -1173,7 +1194,7 @@ namespace SharpCompress.Compressor.Rar
                 if (CurSize < DataSize + RarVM.VM_FIXEDGLOBALSIZE)
                 {
                     // StackFilter->Prg.GlobalData.Add(DataSize+VM_FIXEDGLOBALSIZE-CurSize);
-                    StackFilter.Program.GlobalData.Clear();//.setSize(DataSize + RarVM.VM_FIXEDGLOBALSIZE - CurSize);
+                    StackFilter.Program.GlobalData.SetSize(DataSize + RarVM.VM_FIXEDGLOBALSIZE - CurSize);
                 }
                 int offset = RarVM.VM_FIXEDGLOBALSIZE;
                 globalData = StackFilter.Program.GlobalData;

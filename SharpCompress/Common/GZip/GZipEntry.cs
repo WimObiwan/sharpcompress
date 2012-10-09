@@ -13,6 +13,11 @@ namespace SharpCompress.Common.GZip
             this.filePart = filePart;
         }
 
+        public override CompressionType CompressionType
+        {
+            get { return CompressionType.GZip; }
+        }
+
         public override uint Crc
         {
             get { return 0; }
