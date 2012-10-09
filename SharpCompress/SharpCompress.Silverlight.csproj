@@ -238,6 +238,8 @@
     <Compile Include="Compressor\PPMd\I1\See2Context.cs" />
     <Compile Include="Compressor\PPMd\PpmdProperties.cs" />
     <Compile Include="Compressor\PPMd\PpmdStream.cs" />
+    <Compile Include="Compressor\Rar\ComprDataIO.cs" />
+    <Compile Include="Compressor\Rar\Crypt.cs" />
     <Compile Include="Compressor\Rar\Decode\AudioVariables.cs" />
     <Compile Include="Compressor\Rar\Decode\BitDecode.cs" />
     <Compile Include="Compressor\Rar\Decode\CodeType.cs" />

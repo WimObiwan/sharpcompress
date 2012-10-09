@@ -161,8 +161,8 @@ namespace SharpCompress.Compressor.Rar
         {
             destUnpSize = fileHeader.UncompressedSize;
             this.fileHeader = fileHeader;
-            base.writeStream = writeStream;
-            base.readStream = readStream;
+            base.writeStream = new ComprDataIO(writeStream);
+            base.readStream = new ComprDataIO(readStream);
             bool solid = FlagUtility.HasFlag(fileHeader.FileFlags, FileFlags.SOLID);
             if (!solid)
             {

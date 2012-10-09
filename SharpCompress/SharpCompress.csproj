@@ -193,6 +193,8 @@
     <Compile Include="Compressor\PPMd\I1\See2Context.cs" />
     <Compile Include="Compressor\PPMd\PpmdProperties.cs" />
     <Compile Include="Compressor\PPMd\PpmdStream.cs" />
+    <Compile Include="Compressor\Rar\ComprDataIO.cs" />
+    <Compile Include="Compressor\Rar\Crypt.cs" />
     <Compile Include="Compressor\Rar\RarStream.cs" />
     <Compile Include="IO\CountingWritableSubStream.cs" />
     <Compile Include="Common\EntryStream.cs">
