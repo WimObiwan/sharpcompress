@@ -7,6 +7,7 @@ namespace SharpCompress.Common
     {
         private Stream stream;
         private bool completed;
+        private bool cancelFurtherReading;
 
         internal EntryStream(Stream stream)
         {
@@ -18,16 +19,32 @@ namespace SharpCompress.Common
         /// </summary>
         public void SkipEntry()
         {
-            var buffer = new byte[4096];
-            while (Read(buffer, 0, buffer.Length) > 0)
+            SkipEntry(false);
+        }
+
+        /// <summary>
+        /// When reading a stream from OpenEntryStream, the stream must be completed so use this to finish reading the entire entry.
+        /// </summary>
+        public void SkipEntry(bool cancelFurtherReading)
+        {
+            if (cancelFurtherReading)
             {
+                this.cancelFurtherReading = true;
+                stream.Dispose(); // Dispose inner stream to prevent further reading...
+            }
+            else
+            {
+                var buffer = new byte[4096];
+                while (Read(buffer, 0, buffer.Length) > 0)
+                {
+                }
             }
             completed = true;
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (!completed)
+            if (!completed && !cancelFurtherReading)
             {
                 throw new InvalidOperationException("EntryStream has not been fully consumed.  Read the entire stream or use SkipEntry.");
             }
