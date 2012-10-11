@@ -128,7 +128,6 @@ namespace SharpCompress.Compressor.Rar
           }
         }
 
-
         void SetAV15Encryption()
         {
           decryption=15;

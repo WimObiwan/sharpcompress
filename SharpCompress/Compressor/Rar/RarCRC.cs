@@ -4,7 +4,7 @@ namespace SharpCompress.Compressor.Rar
 {
     internal static class RarCRC
     {
-        private static uint[] crcTab;
+        public static uint[] CrcTab { get; private set; }
 
         public static uint CheckCrc(uint startCrc, byte[] data, int offset, int count)
         {
@@ -12,7 +12,7 @@ namespace SharpCompress.Compressor.Rar
 
             for (int i = 0; i < size; i++)
             {
-                startCrc = (crcTab[((int)((int)startCrc ^ (int)data[offset + i])) & 0xff] ^ (startCrc >> 8));
+                startCrc = (CrcTab[((int)((int)startCrc ^ (int)data[offset + i])) & 0xff] ^ (startCrc >> 8));
             }
             return (startCrc);
         }
@@ -20,7 +20,7 @@ namespace SharpCompress.Compressor.Rar
         static RarCRC()
         {
             {
-                crcTab = new uint[256];
+                CrcTab = new uint[256];
                 for (uint i = 0; i < 256; i++)
                 {
                     uint c = i;
@@ -36,7 +36,7 @@ namespace SharpCompress.Compressor.Rar
                             c = c >> 1;
                         }
                     }
-                    crcTab[i] = c;
+                    CrcTab[i] = c;
                 }
             }
         }
